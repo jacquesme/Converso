@@ -1,0 +1,21 @@
+// android/build.gradle (root project)
+
+plugins {
+    // Don’t apply these at the root — the app module will.
+    id("com.android.application") version "8.6.0" apply false
+    id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+    // If you ever need RN's optional root helper, this is the correct id:
+    // id("com.facebook.react.root") apply false
+}
+
+allprojects {
+    repositories {
+        google()
+        mavenCentral()
+    }
+}
+
+tasks.register("clean", Delete) {
+    delete(rootProject.buildDir)
+}
+

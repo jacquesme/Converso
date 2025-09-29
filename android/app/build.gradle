@@ -1,0 +1,59 @@
+// android/app/build.gradle (app module)
+
+apply plugin: "com.android.application"
+apply plugin: "org.jetbrains.kotlin.android"
+apply plugin: "com.facebook.react"   // RN Gradle plugin (provided by settings.gradle includeBuild)
+
+react {
+  // defaults are fine
+  // enableHermes true
+}
+
+android {
+  namespace "com.converso"
+
+  // ✅ This fixes the error
+  compileSdk 34          // or 35 if you prefer; just make sure it's installed
+
+  defaultConfig {
+    applicationId "com.converso"
+    minSdk 24
+    targetSdk 34         // match your compileSdk (or 35 if you use it)
+    versionCode 1
+    versionName "1.0"
+    multiDexEnabled true
+  }
+
+  buildTypes {
+    release {
+      // For now keep it simple. Wire up ProGuard later if you want.
+      minifyEnabled false
+      proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+    }
+  }
+
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+  kotlinOptions {
+    jvmTarget = "17"
+  }
+
+  packagingOptions {
+    jniLibs {
+      useLegacyPackaging = true
+    }
+    resources {
+      excludes += ["/META-INF/{AL2.0,LGPL2.1}"]
+    }
+  }
+}
+
+dependencies {
+  implementation fileTree(dir: "libs", include: ["*.jar"])
+  // Add your extra libs here (picker/tts/etc) — the RN core is provided by the plugin.
+  implementation "androidx.core:core-ktx:1.13.1"
+  implementation "com.google.android.material:material:1.12.0"
+}
+
