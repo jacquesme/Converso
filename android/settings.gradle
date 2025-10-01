@@ -4,11 +4,11 @@ pluginManagement {
     google()
     mavenCentral()
   }
-  includeBuild("../node_modules/@react-native/gradle-plugin")
 }
 
+@Suppress("UnstableApiUsage")
 dependencyResolutionManagement {
-  repositoriesMode.set(RepositoriesMode.PREFER_SETTINGS)
+  repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
   repositories {
     google()
     mavenCentral()
@@ -17,3 +17,6 @@ dependencyResolutionManagement {
 
 rootProject.name = "Converso"
 include(":app")
+
+// Let Gradle find the RN Gradle plugin from node_modules (no internet artifact needed)
+includeBuild("../node_modules/react-native-gradle-plugin")

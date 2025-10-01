@@ -1,59 +1,59 @@
-// android/app/build.gradle (app module)
-
-apply plugin: "com.android.application"
-apply plugin: "org.jetbrains.kotlin.android"
-apply plugin: "com.facebook.react"   // RN Gradle plugin (provided by settings.gradle includeBuild)
-
-react {
-  // defaults are fine
-  // enableHermes true
+plugins {
+  id "com.android.application"
+  id "org.jetbrains.kotlin.android"
+  id "com.facebook.react"    // RN’s Gradle plugin
 }
 
 android {
   namespace "com.converso"
 
-  // ✅ This fixes the error
-  compileSdk 34          // or 35 if you prefer; just make sure it's installed
+  compileSdkVersion rootProject.ext.compileSdkVersion
 
   defaultConfig {
     applicationId "com.converso"
-    minSdk 24
-    targetSdk 34         // match your compileSdk (or 35 if you use it)
+    minSdkVersion rootProject.ext.minSdkVersion
+    targetSdkVersion rootProject.ext.targetSdkVersion
     versionCode 1
     versionName "1.0"
     multiDexEnabled true
   }
 
   buildTypes {
+    debug {
+      signingConfig signingConfigs.debug
+    }
     release {
-      // For now keep it simple. Wire up ProGuard later if you want.
       minifyEnabled false
-      proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
+      proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
+      signingConfig signingConfigs.debug
     }
   }
 
-  compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
-  }
-  kotlinOptions {
-    jvmTarget = "17"
+  buildFeatures {
+    buildConfig true
   }
 
   packagingOptions {
-    jniLibs {
-      useLegacyPackaging = true
-    }
     resources {
-      excludes += ["/META-INF/{AL2.0,LGPL2.1}"]
+      excludes += [ "META-INF/**" ]
     }
   }
 }
 
-dependencies {
-  implementation fileTree(dir: "libs", include: ["*.jar"])
-  // Add your extra libs here (picker/tts/etc) — the RN core is provided by the plugin.
-  implementation "androidx.core:core-ktx:1.13.1"
-  implementation "com.google.android.material:material:1.12.0"
+react {
+  // Defaults are fine; Hermes is enabled by default on new RN.
+  // If you turned it off, set: enableHermes false
 }
 
+dependencies {
+  implementation("androidx.core:core-ktx:1.13.1")
+  implementation("androidx.appcompat:appcompat:1.7.0")
+  implementation("com.facebook.react:react-android")            // pulled via the plugin
+  implementation("com.facebook.fbjni:fbjni-java-only:0.5.1")
+
+  // Your libs (voice / tts / picker / safe-area)
+  implementation("com.google.android.material:material:1.12.0")
+
+  // If you use multidex with large deps:
+  implementation("androidx.multidex:multidex:2.0.1")
+}
