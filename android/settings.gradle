@@ -6,17 +6,19 @@ pluginManagement {
   }
 }
 
-@Suppress("UnstableApiUsage")
 dependencyResolutionManagement {
   repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
   repositories {
     google()
     mavenCentral()
+
+    // React Native AARs
+    maven { url("$rootDir/../node_modules/react-native/android") }
+
+    // If your project uses JSC (Hermes is default, so this is optional)
+    maven { url("$rootDir/../node_modules/jsc-android/dist") }
   }
 }
 
 rootProject.name = "Converso"
 include(":app")
-
-// Let Gradle find the RN Gradle plugin from node_modules (no internet artifact needed)
-includeBuild("../node_modules/react-native-gradle-plugin")

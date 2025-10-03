@@ -1,34 +1,34 @@
+// android/build.gradle (root)
+
 buildscript {
   ext {
-    // You can bump these later, but keep them consistent everywhere.
+    // Centralize the versions so the app module can read them via rootProject.ext
     buildToolsVersion = "36.0.0"
-    minSdkVersion     = 24
-    compileSdkVersion = 36
-    targetSdkVersion  = 36
-    kotlinVersion     = "2.1.20"
+    minSdkVersion    = 24
+    compileSdkVersion= 36
+    targetSdkVersion = 36
+    ndkVersion       = "27.1.12297006"
+    kotlinVersion    = "2.0.20"
   }
+
   repositories {
     google()
     mavenCentral()
   }
+
   dependencies {
-    // Only Android & Kotlin plugins live here.
+    // Android Gradle Plugin
     classpath("com.android.tools.build:gradle:8.5.2")
+    // Kotlin Gradle Plugin
     classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:${kotlinVersion}")
+    // React Native Gradle plugin
+    classpath("com.facebook.react:react-native-gradle-plugin")
   }
 }
 
-// DO NOT apply any 'com.facebook.react.*' plugin here.
-// That’s applied in :app using the modern plugin id ‘com.facebook.react’.
-
-allprojects {
-  repositories {
-    google()
-    mavenCentral()
-  }
-}
-
-task clean(type: Delete) {
-  delete rootProject.buildDir
-}
-
+/*
+ * IMPORTANT:
+ * Do NOT declare any project-level repositories here (e.g. no `allprojects { repositories { ... } }`).
+ * With `repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)` in settings.gradle,
+ * all repositories must live in android/settings.gradle.
+ */

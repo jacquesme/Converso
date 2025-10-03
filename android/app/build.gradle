@@ -1,59 +1,18 @@
-plugins {
-  id "com.android.application"
-  id "org.jetbrains.kotlin.android"
-  id "com.facebook.react"    // RN’s Gradle plugin
-}
-
 android {
-  namespace "com.converso"
+    namespace "com.converso"
 
-  compileSdkVersion rootProject.ext.compileSdkVersion
+    // Either of these is fine with AGP 8.x:
+    compileSdkVersion 36
+    // or: compileSdk 36
 
-  defaultConfig {
-    applicationId "com.converso"
-    minSdkVersion rootProject.ext.minSdkVersion
-    targetSdkVersion rootProject.ext.targetSdkVersion
-    versionCode 1
-    versionName "1.0"
-    multiDexEnabled true
-  }
+    // Optional: you can remove this line and AGP will pick the latest 36.x
+    buildToolsVersion "36.0.0"
 
-  buildTypes {
-    debug {
-      signingConfig signingConfigs.debug
+    defaultConfig {
+        applicationId "com.converso"
+        minSdkVersion 24
+        targetSdkVersion 36
+        versionCode 1
+        versionName "1.0"
     }
-    release {
-      minifyEnabled false
-      proguardFiles getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro"
-      signingConfig signingConfigs.debug
-    }
-  }
-
-  buildFeatures {
-    buildConfig true
-  }
-
-  packagingOptions {
-    resources {
-      excludes += [ "META-INF/**" ]
-    }
-  }
-}
-
-react {
-  // Defaults are fine; Hermes is enabled by default on new RN.
-  // If you turned it off, set: enableHermes false
-}
-
-dependencies {
-  implementation("androidx.core:core-ktx:1.13.1")
-  implementation("androidx.appcompat:appcompat:1.7.0")
-  implementation("com.facebook.react:react-android")            // pulled via the plugin
-  implementation("com.facebook.fbjni:fbjni-java-only:0.5.1")
-
-  // Your libs (voice / tts / picker / safe-area)
-  implementation("com.google.android.material:material:1.12.0")
-
-  // If you use multidex with large deps:
-  implementation("androidx.multidex:multidex:2.0.1")
 }
