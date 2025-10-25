@@ -1,9 +1,12 @@
 pluginManagement {
     repositories {
-        google()
         gradlePluginPortal()
+        google()
         mavenCentral()
+        maven { url("$rootDir/../node_modules/react-native/android") }
     }
+    // ✅ use local RN Gradle plugin
+    includeBuild("../node_modules/@react-native/gradle-plugin")
 }
 
 dependencyResolutionManagement {
@@ -11,8 +14,9 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven { url("$rootDir/../node_modules/react-native/android") }
     }
 }
 
-rootProject.name = 'Converso'
-include ':app'
+rootProject.name = "Converso"
+include(":app")

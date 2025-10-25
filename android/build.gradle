@@ -1,32 +1,6 @@
-buildscript {
-    ext {
-        buildToolsVersion = "34.0.0"
-        minSdkVersion = 21
-        compileSdkVersion = 34
-        targetSdkVersion = 34
-        ndkVersion = "26.1.10909125"
-        kotlinVersion = "1.9.24"
-    }
-    repositories {
-        google()
-        mavenCentral()
-        maven {
-            url("$rootDir/../node_modules/react-native/ReactAndroid")
-        }
-    }
-    dependencies {
-        classpath("com.android.tools.build:gradle:8.3.0")
-        classpath("com.facebook.react:react-native-gradle-plugin")
-        classpath("org.jetbrains.kotlin:kotlin-gradle-plugin:$kotlinVersion")
-    }
-}
-
-allprojects {
-    repositories {
-        google()
-        mavenCentral()
-        maven {
-            url("$rootDir/../node_modules/react-native/ReactAndroid")
-        }
-    }
+plugins {
+    id("com.android.application") version "8.3.2" apply false
+    id("com.android.library")     version "8.3.2" apply false
+    // Keep ONLY if you actually use Kotlin (.kt files in your app):
+    // id("org.jetbrains.kotlin.android") version "1.9.24" apply false
 }

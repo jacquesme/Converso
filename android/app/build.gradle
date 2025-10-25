@@ -1,11 +1,12 @@
-// Use plugin DSL (AGP 8.x)
-apply plugin: 'com.android.application'
-apply plugin: 'com.facebook.react'
-apply plugin: 'org.jetbrains.kotlin.android'
+plugins {
+  id("com.android.application")
+  id("com.facebook.react")
+  // id("org.jetbrains.kotlin.android") // only if you use Kotlin
+}
 
 android {
-  namespace "com.converso"       // MUST match your Manifest + package
-  compileSdk 36                   // you've installed 36; OK to use 34 if you prefer
+  namespace "com.converso"
+  compileSdk 36  // 34 or 36, depending on which SDK you have installed
 
   defaultConfig {
     applicationId "com.converso"
@@ -16,56 +17,5 @@ android {
     vectorDrawables.useSupportLibrary = true
   }
 
-  signingConfigs {
-    debug {
-      storeFile file("../debug.keystore")
-      storePassword "android"
-      keyAlias "androiddebugkey"
-      keyPassword "android"
-    }
-  }
-
-  buildTypes {
-    debug {
-      signingConfig signingConfigs.debug
-    }
-    release {
-      // For now, use debug keystore; replace with your release signing later
-      signingConfig signingConfigs.debug
-      minifyEnabled false
-      shrinkResources false
-      proguardFiles getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro"
-    }
-  }
-
-  compileOptions {
-    sourceCompatibility JavaVersion.VERSION_17
-    targetCompatibility JavaVersion.VERSION_17
-  }
-  kotlinOptions {
-    jvmTarget = "17"
-  }
-
-  packaging {
-    resources {
-      excludes += [
-        "META-INF/**",
-        "okhttp3/internal/publicsuffix/*"
-      ]
-    }
-  }
-}
-
-// React Native (leave defaults unless you need to tweak)
-react {
-  // enableHermes true // default is Hermes ON in RN ≥0.73
-}
-
-// No repositories here — kept in settings.gradle
-dependencies {
-  implementation("com.facebook.react:react-android")    // provided by the RN Gradle plugin
-  implementation("org.jetbrains.kotlin:kotlin-stdlib:1.9.24")
-
-  // your libs
-  implementation("com.github.yalantis:ucrop:2.2.8") // example; remove if not used
+  // your signingConfigs, buildTypes, etc.
 }
