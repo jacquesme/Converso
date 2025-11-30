@@ -7,7 +7,8 @@
     "ios": "react-native run-ios",
     "lint": "eslint .",
     "start": "react-native start",
-    "test": "jest"
+    "test": "jest",
+    "run-app": "powershell -ExecutionPolicy Bypass -File ./run-app.ps1"
   },
   "dependencies": {
     "@react-native-picker/picker": "^2.11.2",
@@ -27,6 +28,7 @@
     "@react-native-community/cli-platform-ios": "20.0.0",
     "@react-native/babel-preset": "0.81.4",
     "@react-native/eslint-config": "0.81.4",
+    "@react-native/gradle-plugin": "^0.81.4",
     "@react-native/metro-config": "0.81.4",
     "@react-native/typescript-config": "0.81.4",
     "@types/jest": "^29.5.13",

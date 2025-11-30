@@ -1,6 +1,33 @@
 plugins {
     id("com.android.application") version "8.3.2" apply false
     id("com.android.library")     version "8.3.2" apply false
-    // Keep ONLY if you actually use Kotlin (.kt files in your app):
-    // id("org.jetbrains.kotlin.android") version "1.9.24" apply false
+    // Kotlin plugin - required for libraries that use Kotlin (must match React Native version)
+    id("org.jetbrains.kotlin.android") version "2.1.0" apply false
+}
+
+// Configure compileSdkVersion and namespace for all Android library subprojects
+subprojects { subproject ->
+    afterEvaluate {
+        if (subproject.plugins.hasPlugin('com.android.library')) {
+            subproject.android {
+                compileSdk 36
+                
+                // Set namespace for libraries that don't have it set
+                if (!namespace) {
+                    // Special cases for known libraries
+                    if (subproject.name == 'react-native-tts') {
+                        namespace = "net.no_mad.tts"
+                    } else if (subproject.name == 'react-native-safe-area-context') {
+                        namespace = "com.th3rdwave.safeareacontext"
+                    } else if (subproject.name == 'react-native-picker_picker') {
+                        namespace = "com.reactnativecommunity.picker"
+                    } else if (subproject.name == 'react-native-voice_voice') {
+                        namespace = "com.wenkesj.voice"
+                    } else {
+                        namespace = subproject.group ?: "com.converso"
+                    }
+                }
+            }
+        }
+    }
 }

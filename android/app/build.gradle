@@ -19,3 +19,17 @@ android {
 
   // your signingConfigs, buildTypes, etc.
 }
+
+react {
+  // Autolink libraries from autolinking.json
+  autolinkLibrariesWithApp()
+}
+
+dependencies {
+  implementation("androidx.appcompat:appcompat:1.6.1")
+  
+  // React Native dependencies - should be automatically added by plugin, but adding explicitly
+  // The plugin's resolution strategy will force the correct version from reactNativeDir
+  implementation("com.facebook.react:react-android")
+  implementation("com.facebook.react:hermes-android")
+}
