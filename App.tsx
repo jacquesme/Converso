@@ -1,14 +1,12 @@
 import React, {
   useCallback,
   useEffect,
-  useMemo,
   useRef,
   useState,
 } from 'react';
 import {
   Platform,
   PermissionsAndroid,
-  EmitterSubscription,
   StyleSheet,
   Text,
   TouchableOpacity,
@@ -21,9 +19,13 @@ import Voice, {
 } from '@react-native-voice/voice';
 import Tts from 'react-native-tts';
 
-// If you already have this helper, keep it.
-// Adjust the import path if your project structure differs.
+// Adjust path if your project structure differs.
 import { translateText } from './src/services/translate';
+
+// Tuning knobs for the hands-free loop
+const RESTART_AFTER_TTS_MS = 250;
+const RESTART_AFTER_ERROR_MS = 500;
+const SPEAK_SAFETY_TIMEOUT_MS = 15000;
 
 export default function App() {
   const [isListening, setIsListening] = useState(false);
@@ -31,6 +33,26 @@ export default function App() {
   const [handsFree, setHandsFree] = useState(true);
   const [heard, setHeard] = useState<string>('');
   const [targetLang, setTargetLang] = useState<'en' | 'es'>('en');
+
+  // ---------- refs: latest-value mirrors so the setup effect can stay single-run
+  const handsFreeRef = useRef(handsFree);
+  const isSpeakingRef = useRef(isSpeaking);
+  const isListeningRef = useRef(isListening);
+  const targetLangRef = useRef(targetLang);
+
+  useEffect(() => { handsFreeRef.current = handsFree; }, [handsFree]);
+  useEffect(() => { isSpeakingRef.current = isSpeaking; }, [isSpeaking]);
+  useEffect(() => { isListeningRef.current = isListening; }, [isListening]);
+  useEffect(() => { targetLangRef.current = targetLang; }, [targetLang]);
+
+  // Safety timer so isSpeaking can't get stuck true if tts-finish never fires
+  const speakTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const clearSpeakTimeout = () => {
+    if (speakTimeoutRef.current) {
+      clearTimeout(speakTimeoutRef.current);
+      speakTimeoutRef.current = null;
+    }
+  };
 
   // ---------- helpers ----------
   const ensureMicPermission = useCallback(async () => {
@@ -48,14 +70,21 @@ export default function App() {
   }, []);
 
   const startListening = useCallback(async () => {
+    // Don't start while we're still speaking — avoids self-echo loops
+    if (isSpeakingRef.current) return;
+    if (isListeningRef.current) return;
+
     const ok = await ensureMicPermission();
-    if (!ok) return;
+    if (!ok) {
+      console.warn('[Converso] mic permission denied');
+      return;
+    }
     try {
       setHeard('');
-      // Use your preferred locale here
-      await Voice.start('en-US');
+      await Voice.start('en-US'); // change locale as needed
       setIsListening(true);
     } catch (e) {
+      console.warn('[Converso] Voice.start failed:', e);
       setIsListening(false);
     }
   }, [ensureMicPermission]);
@@ -63,6 +92,8 @@ export default function App() {
   const stopListening = useCallback(async () => {
     try {
       await Voice.stop();
+    } catch (e) {
+      console.warn('[Converso] Voice.stop failed:', e);
     } finally {
       setIsListening(false);
     }
@@ -72,90 +103,103 @@ export default function App() {
     if (!text) return;
     try {
       setIsSpeaking(true);
-      // Set a voice / rate / pitch only if you need to. Defaults are fine for most cases.
-      // await Tts.setDefaultRate(0.5);
-      // await Tts.setDefaultPitch(1.0);
+      clearSpeakTimeout();
+      // Safety net: if tts-finish / tts-cancel / tts-error never fires, release the flag
+      speakTimeoutRef.current = setTimeout(() => {
+        setIsSpeaking(false);
+      }, SPEAK_SAFETY_TIMEOUT_MS);
       await Tts.speak(text);
     } catch (e) {
+      console.warn('[Converso] Tts.speak failed:', e);
       setIsSpeaking(false);
+      clearSpeakTimeout();
     }
   }, []);
 
   const translateAndSpeak = useCallback(
     async (text: string) => {
       try {
-        const translated = await translateText(text, targetLang);
+        const translated = await translateText(text, targetLangRef.current);
         await speak(translated || text);
-      } catch {
-        // fallback to original text if translation fails
+      } catch (e) {
+        console.warn('[Converso] translate failed, speaking original:', e);
         await speak(text);
       }
     },
-    [speak, targetLang],
+    [speak],
   );
 
-  // ---------- Voice event handlers ----------
-  const onSpeechResults = useCallback(
-    (e: SpeechResultsEvent) => {
+  // Stable refs to the functions used inside the single-run setup effect
+  const startListeningRef = useRef(startListening);
+  const stopListeningRef = useRef(stopListening);
+  const translateAndSpeakRef = useRef(translateAndSpeak);
+  useEffect(() => { startListeningRef.current = startListening; }, [startListening]);
+  useEffect(() => { stopListeningRef.current = stopListening; }, [stopListening]);
+  useEffect(() => { translateAndSpeakRef.current = translateAndSpeak; }, [translateAndSpeak]);
+
+  // ---------- Effect: wire up Voice + TTS listeners ONCE ----------
+  useEffect(() => {
+    Voice.onSpeechResults = (e: SpeechResultsEvent) => {
       const t = e.value?.[0] ?? '';
       setHeard(t);
-      if (!handsFree) return;
-
-      // In hands-free mode, stop listening and speak the result immediately
-      stopListening().finally(() => {
-        // translate & speak
-        translateAndSpeak(t);
+      if (!handsFreeRef.current) return;
+      // Stop listening, then translate + speak. The tts-finish handler will resume listening.
+      stopListeningRef.current().finally(() => {
+        translateAndSpeakRef.current(t);
       });
-    },
-    [handsFree, stopListening, translateAndSpeak],
-  );
+    };
 
-  const onSpeechError = useCallback(
-    (_e: SpeechErrorEvent) => {
+    Voice.onSpeechError = (_e: SpeechErrorEvent) => {
       setIsListening(false);
-      // If hands-free, try to restart the microphone quickly
-      if (handsFree) {
-        // small debounce/backoff can be added if needed
-        startListening();
+      // Only auto-restart in hands-free mode, and only when we're not speaking.
+      // Use a small backoff so transient errors (e.g. "no match") don't tight-loop.
+      if (handsFreeRef.current && !isSpeakingRef.current) {
+        setTimeout(() => {
+          if (handsFreeRef.current && !isSpeakingRef.current) {
+            startListeningRef.current();
+          }
+        }, RESTART_AFTER_ERROR_MS);
       }
-    },
-    [handsFree, startListening],
-  );
+    };
 
-  // ---------- Effect: wire up Voice and TTS listeners ----------
+    const onFinish = () => {
+      setIsSpeaking(false);
+      clearSpeakTimeout();
+      // Resume listening after we finish speaking, if hands-free is on
+      if (handsFreeRef.current) {
+        setTimeout(() => {
+          if (handsFreeRef.current && !isSpeakingRef.current) {
+            startListeningRef.current();
+          }
+        }, RESTART_AFTER_TTS_MS);
+      }
+    };
+    const onCancel = () => {
+      setIsSpeaking(false);
+      clearSpeakTimeout();
+    };
+    const onError = () => {
+      setIsSpeaking(false);
+      clearSpeakTimeout();
+    };
 
-  useEffect(() => {
-    Voice.onSpeechResults = onSpeechResults;
-    Voice.onSpeechError = onSpeechError;
-
-    const finishSub = Tts.addEventListener('tts-finish', () =>
-      setIsSpeaking(false),
-    ) as unknown as EmitterSubscription;
-    const cancelSub = Tts.addEventListener('tts-cancel', () =>
-      setIsSpeaking(false),
-    ) as unknown as EmitterSubscription;
-    const errorSub = Tts.addEventListener('tts-error', () =>
-      setIsSpeaking(false),
-    ) as unknown as EmitterSubscription;
+    const finishSub = Tts.addEventListener('tts-finish', onFinish);
+    const cancelSub = Tts.addEventListener('tts-cancel', onCancel);
+    const errorSub = Tts.addEventListener('tts-error', onError);
 
     return () => {
-      try {
-        Voice.destroy().finally(() => Voice.removeAllListeners());
-      } catch {}
-      try {
-        finishSub?.remove();
-      } catch {}
-      try {
-        cancelSub?.remove();
-      } catch {}
-      try {
-        errorSub?.remove();
-      } catch {}
+      clearSpeakTimeout();
+      Voice.destroy()
+        .then(() => Voice.removeAllListeners())
+        .catch(() => {});
+      finishSub?.remove?.();
+      cancelSub?.remove?.();
+      errorSub?.remove?.();
       try {
         Tts.stop();
       } catch {}
     };
-  }, [onSpeechError, onSpeechResults]);
+  }, []); // <-- empty deps on purpose; refs keep this fresh
 
   // ---------- UI handlers ----------
   const onPressMic = useCallback(() => {
@@ -187,21 +231,18 @@ export default function App() {
             {isListening ? 'ON' : 'OFF'}
           </Text>
         </View>
-
         <View style={styles.row}>
           <Text style={styles.label}>Speaking:</Text>
           <Text style={[styles.value, isSpeaking ? styles.on : styles.off]}>
             {isSpeaking ? 'YES' : 'NO'}
           </Text>
         </View>
-
         <View style={styles.row}>
           <Text style={styles.label}>Hands-free:</Text>
           <Text style={[styles.value, handsFree ? styles.on : styles.off]}>
             {handsFree ? 'ON' : 'OFF'}
           </Text>
         </View>
-
         <View style={styles.row}>
           <Text style={styles.label}>Target Lang:</Text>
           <Text style={styles.value}>{targetLang.toUpperCase()}</Text>
