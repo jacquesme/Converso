@@ -1,97 +1,140 @@
-This is a new [**React Native**](https://reactnative.dev) project, bootstrapped using [`@react-native-community/cli`](https://github.com/react-native-community/cli).
+# Converso
 
-# Getting Started
+A hands-free voice translator for iOS and Android. Speak into your phone and hear the translation spoken back in the target language. Built with React Native.
 
-> **Note**: Make sure you have completed the [Set Up Your Environment](https://reactnative.dev/docs/set-up-your-environment) guide before proceeding.
+## What it does
 
-## Step 1: Start Metro
+Converso listens to your speech through the device microphone, converts it to text, sends that text to a translation API, and speaks the translated result out loud. In hands-free mode the cycle repeats automatically — listen, translate, speak, listen again — so you can use it as a live interpreter without touching the screen between turns.
 
-First, you will need to run **Metro**, the JavaScript build tool for React Native.
+Currently toggles between English and Spanish. Adding more language pairs is a matter of extending a small lookup in `src/services/translate.ts`.
 
-To start the Metro dev server, run the following command from the root of your React Native project:
+## Stack
+
+| Layer | Library |
+| --- | --- |
+| Framework | React Native 0.81 |
+| Speech-to-text | [@react-native-voice/voice](https://github.com/react-native-voice/voice) |
+| Text-to-speech | [react-native-tts](https://github.com/ak1394/react-native-tts) |
+| Translation | [MyMemory Translated API](https://mymemory.translated.net/doc/spec.php) (keyless, free tier) |
+| Language | TypeScript |
+
+## Requirements
+
+- Node.js 20 or newer
+- For iOS: macOS with Xcode 15+, CocoaPods (via Bundler), an iOS 17+ simulator or a physical device
+- For Android: Android Studio with an SDK 34 emulator, or a physical device with USB debugging enabled
+
+## Getting started
+
+Clone the repo and install JavaScript dependencies:
 
 ```sh
-# Using npm
-npm start
-
-# OR using Yarn
-yarn start
-```
-
-## Step 2: Build and run your app
-
-With Metro running, open a new terminal window/pane from the root of your React Native project, and use one of the following commands to build and run your Android or iOS app:
-
-### Android
-
-```sh
-# Using npm
-npm run android
-
-# OR using Yarn
-yarn android
+git clone https://github.com/jacquesme/Converso.git
+cd Converso
+npm install
 ```
 
 ### iOS
 
-For iOS, remember to install CocoaPods dependencies (this only needs to be run on first clone or after updating native deps).
-
-The first time you create a new project, run the Ruby bundler to install CocoaPods itself:
+One-time setup to install Ruby gems and CocoaPods:
 
 ```sh
 bundle install
+cd ios && bundle exec pod install && cd ..
 ```
 
-Then, and every time you update your native dependencies, run:
+Then start Metro and launch the app:
 
 ```sh
-bundle exec pod install
+npm start         # in one terminal
+npm run ios       # in another terminal
 ```
 
-For more information, please visit [CocoaPods Getting Started guide](https://guides.cocoapods.org/using/getting-started.html).
+The iOS Simulator will open and install the app.
+
+### Android
+
+Make sure an emulator is running or a device is connected (`adb devices` should list it). Then:
 
 ```sh
-# Using npm
-npm run ios
-
-# OR using Yarn
-yarn ios
+npm start          # in one terminal
+npm run android    # in another terminal
 ```
 
-If everything is set up correctly, you should see your new app running in the Android Emulator, iOS Simulator, or your connected device.
+## Permissions
 
-This is one way to run your app — you can also build it directly from Android Studio or Xcode.
+Both platforms need microphone access. Speech recognition additionally needs its own permission on iOS.
 
-## Step 3: Modify your app
+On **iOS**, the following keys must be present in `ios/Converso/Info.plist`:
 
-Now that you have successfully run the app, let's make changes!
+- `NSMicrophoneUsageDescription` — string explaining why the mic is needed
+- `NSSpeechRecognitionUsageDescription` — string for speech recognition
 
-Open `App.tsx` in your text editor of choice and make some changes. When you save, your app will automatically update and reflect these changes — this is powered by [Fast Refresh](https://reactnative.dev/docs/fast-refresh).
+On **Android**, `RECORD_AUDIO` is requested at runtime by the app itself; no manifest changes required beyond what's already in `android/app/src/main/AndroidManifest.xml`.
 
-When you want to forcefully reload, for example to reset the state of your app, you can perform a full reload:
+## Using the app
 
-- **Android**: Press the <kbd>R</kbd> key twice or select **"Reload"** from the **Dev Menu**, accessed via <kbd>Ctrl</kbd> + <kbd>M</kbd> (Windows/Linux) or <kbd>Cmd ⌘</kbd> + <kbd>M</kbd> (macOS).
-- **iOS**: Press <kbd>R</kbd> in iOS Simulator.
+The UI is deliberately minimal. Four buttons:
 
-## Congratulations! :tada:
+- **Listen / Stop** — toggles the microphone on and off
+- **Speak** — re-speaks the last heard phrase (translated)
+- **Hands-free ON/OFF** — when on, listening resumes automatically after each translation is spoken
+- **Lang** — toggles target language between EN and ES
 
-You've successfully run and modified your React Native App. :partying_face:
+The status rows at the top show whether the mic is active, whether TTS is speaking, whether hands-free is on, and the current target language.
 
-### Now what?
+## How the hands-free loop works
 
-- If you want to add this new React Native code to an existing application, check out the [Integration guide](https://reactnative.dev/docs/integration-with-existing-apps).
-- If you're curious to learn more about React Native, check out the [docs](https://reactnative.dev/docs/getting-started).
+1. User speaks into the mic.
+2. `@react-native-voice/voice` returns the recognised text.
+3. The text is sent to the MyMemory translation API.
+4. `react-native-tts` speaks the translated result.
+5. The `tts-finish` event fires and listening resumes — back to step 1.
 
-# Troubleshooting
+All of this is wired up in `App.tsx` through a single-run `useEffect` with ref-based state access, so toggling hands-free or the language does not tear down the Voice engine mid-session.
 
-If you're having issues getting the above steps to work, see the [Troubleshooting](https://reactnative.dev/docs/troubleshooting) page.
+## Translation notes
 
-# Learn More
+MyMemory allows about 5,000 words per day per IP address anonymously, and about 50,000 per day if you pass an email address with each request. To raise your limit, set `CONTACT_EMAIL` at the top of `src/services/translate.ts` to a real email. No signup required.
 
-To learn more about React Native, take a look at the following resources:
+If the API fails (rate limit, network, quota), the app falls back to speaking the original text and logs a `[translate]` warning to the Metro console, so you can see in dev when translation silently fails.
 
-- [React Native Website](https://reactnative.dev) - learn more about React Native.
-- [Getting Started](https://reactnative.dev/docs/environment-setup) - an **overview** of React Native and how setup your environment.
-- [Learn the Basics](https://reactnative.dev/docs/getting-started) - a **guided tour** of the React Native **basics**.
-- [Blog](https://reactnative.dev/blog) - read the latest official React Native **Blog** posts.
-- [`@facebook/react-native`](https://github.com/facebook/react-native) - the Open Source; GitHub **repository** for React Native.
+## Project layout
+
+```
+Converso/
+├── App.tsx                  # main component; Voice + TTS + hands-free logic
+├── src/services/
+│   └── translate.ts         # MyMemory translation client
+├── __tests__/               # Jest tests
+├── __mocks__/               # native module mocks for tests
+├── android/                 # native Android project
+├── ios/                     # native iOS project + Podfile
+└── package.json
+```
+
+## Running the tests
+
+```sh
+npm test
+```
+
+Jest is configured with mocks for `@react-native-voice/voice` and `react-native-tts` in `__mocks__/`.
+
+## Known limitations
+
+- **iOS Simulator microphone is unreliable.** Speech recognition in the simulator depends on your Mac's mic being piped through, and results are often poor. Test voice features on a real iPhone for accurate behaviour.
+- **No source-language detection.** MyMemory's free tier requires explicit source and target languages, so Converso infers the source as the opposite of the target (EN ↔ ES). If you speak a third language, recognition will fail.
+- **Hands-free and loud environments don't mix.** The mic can pick up its own TTS output through the speaker and loop on itself. Converso gates re-listening on the `tts-finish` event to minimise this, but headphones are recommended for reliable hands-free use.
+
+## Roadmap
+
+- Additional language pairs (FR, DE, PT, IT)
+- On-device recognition locale selection (not hard-coded to `en-US`)
+- Configurable TTS voice, rate, and pitch
+- Persistent transcript history
+- Self-hosted LibreTranslate option for private deployments
+
+## License
+
+MIT.
