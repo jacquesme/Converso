@@ -9,6 +9,7 @@ import {
   PermissionsAndroid,
   StyleSheet,
   Text,
+  TextInput,
   TouchableOpacity,
   View,
 } from 'react-native';
@@ -33,6 +34,7 @@ export default function App() {
   const [handsFree, setHandsFree] = useState(true);
   const [heard, setHeard] = useState<string>('');
   const [targetLang, setTargetLang] = useState<'en' | 'es'>('en');
+  const [errorMsg, setErrorMsg] = useState<string>('');
 
   // ---------- refs: latest-value mirrors so the setup effect can stay single-run
   const handsFreeRef = useRef(handsFree);
@@ -81,7 +83,10 @@ export default function App() {
     }
     try {
       setHeard('');
+      setErrorMsg('');
+      console.log('[Voice] calling Voice.start');
       await Voice.start('en-US'); // change locale as needed
+      console.log('[Voice] Voice.start resolved → isListening = true');
       setIsListening(true);
     } catch (e) {
       console.warn('[Converso] Voice.start failed:', e);
@@ -106,6 +111,7 @@ export default function App() {
       clearSpeakTimeout();
       // Safety net: if tts-finish / tts-cancel / tts-error never fires, release the flag
       speakTimeoutRef.current = setTimeout(() => {
+        console.log('[TTS] safety timeout fired, force-releasing isSpeaking');
         setIsSpeaking(false);
       }, SPEAK_SAFETY_TIMEOUT_MS);
       await Tts.speak(text);
@@ -118,6 +124,7 @@ export default function App() {
 
   const translateAndSpeak = useCallback(
     async (text: string) => {
+      console.log('[Speak] translateAndSpeak called, text:', text);
       try {
         const translated = await translateText(text, targetLangRef.current);
         await speak(translated || text);
@@ -139,7 +146,21 @@ export default function App() {
 
   // ---------- Effect: wire up Voice + TTS listeners ONCE ----------
   useEffect(() => {
+    Voice.onSpeechStart = () => {
+      console.log('[Voice] onSpeechStart — recognition active');
+      setErrorMsg('');
+    };
+
+    Voice.onSpeechEnd = () => {
+      console.log('[Voice] onSpeechEnd — recognition stopped');
+    };
+
+    Voice.onSpeechPartialResults = (e: SpeechResultsEvent) => {
+      console.log('[Voice] onSpeechPartialResults:', JSON.stringify(e));
+    };
+
     Voice.onSpeechResults = (e: SpeechResultsEvent) => {
+      console.log('[Voice] onSpeechResults:', JSON.stringify(e));
       const t = e.value?.[0] ?? '';
       setHeard(t);
       if (!handsFreeRef.current) return;
@@ -150,9 +171,13 @@ export default function App() {
     };
 
     Voice.onSpeechError = (_e: SpeechErrorEvent) => {
+      console.log('[Voice] onSpeechError:', JSON.stringify(_e));
       setIsListening(false);
-      // Only auto-restart in hands-free mode, and only when we're not speaking.
-      // Use a small backoff so transient errors (e.g. "no match") don't tight-loop.
+      if (_e.error?.code === 'recognition_fail') {
+        setErrorMsg('Speech recognition unavailable. Test on a physical device.');
+        return;
+      }
+      setErrorMsg('');
       if (handsFreeRef.current && !isSpeakingRef.current) {
         setTimeout(() => {
           if (handsFreeRef.current && !isSpeakingRef.current) {
@@ -162,7 +187,12 @@ export default function App() {
       }
     };
 
+    const startSub = Tts.addEventListener('tts-start', () => {
+      console.log('[TTS] tts-start fired');
+    });
+
     const onFinish = () => {
+      console.log('[TTS] tts-finish fired, releasing isSpeaking');
       setIsSpeaking(false);
       clearSpeakTimeout();
       // Resume listening after we finish speaking, if hands-free is on
@@ -178,23 +208,17 @@ export default function App() {
       setIsSpeaking(false);
       clearSpeakTimeout();
     };
-    const onError = () => {
-      setIsSpeaking(false);
-      clearSpeakTimeout();
-    };
-
     const finishSub = Tts.addEventListener('tts-finish', onFinish);
     const cancelSub = Tts.addEventListener('tts-cancel', onCancel);
-    const errorSub = Tts.addEventListener('tts-error', onError);
 
     return () => {
       clearSpeakTimeout();
       Voice.destroy()
         .then(() => Voice.removeAllListeners())
         .catch(() => {});
+      startSub?.remove?.();
       finishSub?.remove?.();
       cancelSub?.remove?.();
-      errorSub?.remove?.();
       try {
         Tts.stop();
       } catch {}
@@ -208,6 +232,7 @@ export default function App() {
   }, [isListening, startListening, stopListening]);
 
   const onPressSpeakHeard = useCallback(() => {
+    console.log('[Speak] onPress fired, isSpeaking=', isSpeakingRef.current, 'heard=', heard);
     if (!heard) return;
     translateAndSpeak(heard);
   }, [heard, translateAndSpeak]);
@@ -250,10 +275,28 @@ export default function App() {
 
         <View style={styles.section}>
           <Text style={styles.sub}>Heard</Text>
-          <Text style={styles.heard} numberOfLines={4}>
-            {heard || '—'}
-          </Text>
+          {errorMsg ? (
+            <Text style={styles.errorText}>{errorMsg}</Text>
+          ) : (
+            <Text style={styles.heard} numberOfLines={4}>
+              {heard || '—'}
+            </Text>
+          )}
         </View>
+
+        {__DEV__ && (
+          <View style={styles.section}>
+            <Text style={styles.sub}>Debug input</Text>
+            <TextInput
+              style={styles.debugInput}
+              value={heard}
+              onChangeText={setHeard}
+              placeholder="Type text to test translate + speak…"
+              placeholderTextColor="#4a6080"
+              returnKeyType="done"
+            />
+          </View>
+        )}
 
         <View style={styles.buttons}>
           <TouchableOpacity style={styles.btn} onPress={onPressMic}>
@@ -304,6 +347,17 @@ const styles = StyleSheet.create({
   section: { marginTop: 16 },
   sub: { color: '#9db2ce', marginBottom: 6 },
   heard: { color: '#fff', fontSize: 16, lineHeight: 22 },
+  errorText: { color: '#fca5a5', fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
+  debugInput: {
+    color: '#fff',
+    fontSize: 15,
+    borderWidth: 1,
+    borderColor: '#1e293b',
+    borderRadius: 8,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#0f1a2e',
+  },
   buttons: {
     marginTop: 'auto',
     gap: 10,

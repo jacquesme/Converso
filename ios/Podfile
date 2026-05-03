@@ -31,5 +31,18 @@ target 'Converso' do
       :mac_catalyst_enabled => false,
       # :ccache_enabled => true
     )
+
+    # Xcode 26 / iOS 26 SDK: Apple Clang has a consteval bug that fmt 11's
+    # __apple_build_version__ threshold doesn't catch. Patch base.h directly
+    # to downgrade FMT_CONSTEVAL from consteval to constexpr.
+    fmt_base = File.join(installer.sandbox.root, 'fmt/include/fmt/base.h')
+    if File.exist?(fmt_base)
+      content = File.read(fmt_base)
+      patched = content.gsub("#  define FMT_CONSTEVAL consteval\n", "#  define FMT_CONSTEVAL constexpr\n")
+      if patched != content
+        File.chmod(0644, fmt_base)
+        File.write(fmt_base, patched)
+      end
+    end
   end
 end
