@@ -35,6 +35,7 @@ export default function App() {
   const [heard, setHeard] = useState<string>('');
   const [targetLang, setTargetLang] = useState<'en' | 'es'>('en');
   const [errorMsg, setErrorMsg] = useState<string>('');
+  const [history, setHistory] = useState<string[]>([]);
 
   // ---------- refs: latest-value mirrors so the setup effect can stay single-run
   const handsFreeRef = useRef(handsFree);
@@ -128,6 +129,11 @@ export default function App() {
       try {
         const translated = await translateText(text, targetLangRef.current);
         await speak(translated || text);
+        setHistory(prev => {
+          const newHistory = [translated || text, ...prev].slice(0, 5);
+          console.log('[History] updated, length=', newHistory.length, 'first item=', newHistory[0]);
+          return newHistory;
+        });
       } catch (e) {
         console.warn('[Converso] translate failed, speaking original:', e);
         await speak(text);
@@ -173,18 +179,12 @@ export default function App() {
     Voice.onSpeechError = (_e: SpeechErrorEvent) => {
       console.log('[Voice] onSpeechError:', JSON.stringify(_e));
       setIsListening(false);
-      if (_e.error?.code === 'recognition_fail') {
-        setErrorMsg('Speech recognition unavailable. Test on a physical device.');
-        return;
-      }
-      setErrorMsg('');
-      if (handsFreeRef.current && !isSpeakingRef.current) {
-        setTimeout(() => {
-          if (handsFreeRef.current && !isSpeakingRef.current) {
-            startListeningRef.current();
-          }
-        }, RESTART_AFTER_ERROR_MS);
-      }
+      // Kill hands-free immediately on any recognition error.
+      // Updating the ref synchronously ensures any in-flight setTimeout restart
+      // check sees false before it fires. setHandsFree updates the UI.
+      handsFreeRef.current = false;
+      setHandsFree(false);
+      setErrorMsg('Speech recognition failed. Toggle Hands-free ON to retry.');
     };
 
     const startSub = Tts.addEventListener('tts-start', () => {
@@ -245,6 +245,8 @@ export default function App() {
     setTargetLang(l => (l === 'en' ? 'es' : 'en'));
   }, []);
 
+  console.log('[History] rendering, length=', history.length);
+
   return (
     <SafeAreaView style={styles.safe}>
       <View style={styles.container}>
@@ -298,6 +300,17 @@ export default function App() {
           </View>
         )}
 
+        {history.length > 0 && (
+          <View style={styles.section}>
+            <Text style={styles.sub}>History</Text>
+            {history.map((item, i) => (
+              <Text key={i} style={styles.historyItem} numberOfLines={2}>
+                {item}
+              </Text>
+            ))}
+          </View>
+        )}
+
         <View style={styles.buttons}>
           <TouchableOpacity style={styles.btn} onPress={onPressMic}>
             <Text style={styles.btnText}>
@@ -348,6 +361,7 @@ const styles = StyleSheet.create({
   sub: { color: '#9db2ce', marginBottom: 6 },
   heard: { color: '#fff', fontSize: 16, lineHeight: 22 },
   errorText: { color: '#fca5a5', fontSize: 14, lineHeight: 20, fontStyle: 'italic' },
+  historyItem: { color: '#9db2ce', fontSize: 13, lineHeight: 19, paddingVertical: 2 },
   debugInput: {
     color: '#fff',
     fontSize: 15,
